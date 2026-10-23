@@ -15,6 +15,7 @@ from .invertibility import (
     verify_invertibility,
 )
 from .converter import BaseTableConverter
+from .hierarchy import HierarchyNode, parse_hierarchy_tree
 
 __version__ = "0.3.0"
 
@@ -43,4 +44,6 @@ __all__ = [
     "is_trivial_value",
     "verify_invertibility",
     "BaseTableConverter",
+    "HierarchyNode",
+    "parse_hierarchy_tree",
 ]
