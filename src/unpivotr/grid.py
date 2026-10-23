@@ -23,6 +23,12 @@ class Grid:
         self.max_col = max((len(r) for r in self._rows), default=0)
 
     @classmethod
+    def empty(cls, max_row: int = 0, max_col: int = 0, sheet_name: str = "Sheet1") -> Grid:
+        """Crea una malla vacía inicializada con dimensiones opcionales."""
+        rows = [[None] * max_col for _ in range(max_row)]
+        return cls(rows, sheet_name=sheet_name)
+
+    @classmethod
     def from_rows(cls, rows: list[list[Any] | tuple[Any, ...]], sheet_name: str = "Sheet1") -> Grid:
         """Crea una malla a partir de una lista de filas en memoria."""
         return cls(rows, sheet_name=sheet_name)
@@ -58,6 +64,44 @@ class Grid:
         """Obtiene un objeto Cell fuertemente tipado en (r, c)."""
         return Cell(row=r, col=c, val=self.cell_value(r, c), sheet=self.sheet_name)
 
+    def set_cell(self, r: int, c: int, val: Any) -> None:
+        """Asigna un valor en la fila r y columna c (base 1), expandiendo la matriz si es necesario."""
+        while len(self._rows) < r:
+            self._rows.append(tuple())
+        current_row = list(self._rows[r - 1])
+        while len(current_row) < c:
+            current_row.append(None)
+        current_row[c - 1] = val
+        self._rows[r - 1] = tuple(current_row)
+        self.max_row = max(self.max_row, r)
+        self.max_col = max(self.max_col, len(current_row))
+
+    def clone(self) -> Grid:
+        """Crea una copia profunda en memoria de la malla actual."""
+        rows_copy = [list(r) for r in self._rows]
+        return Grid(rows_copy, sheet_name=self.sheet_name)
+
+    def to_rows(self) -> list[list[Any]]:
+        """Exporta la malla como una lista de listas modificable."""
+        return [list(r) for r in self._rows]
+
+    def to_worksheet(self, ws: Any) -> None:
+        """Escribe el contenido completo de la malla en una hoja openpyxl."""
+        for r_idx, row in enumerate(self._rows, start=1):
+            for c_idx, val in enumerate(row, start=1):
+                if val is not None:
+                    ws.cell(row=r_idx, column=c_idx, value=val)
+
+    def to_excel(self, file_path: str | Path) -> None:
+        """Guarda la malla directamente en un archivo Excel (.xlsx)."""
+        import openpyxl
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = self.sheet_name
+        self.to_worksheet(ws)
+        wb.save(file_path)
+
     def __getitem__(self, item: tuple[int, int] | str) -> Cell:
         if isinstance(item, str):
             r, c = parse_address(item)
@@ -92,7 +136,7 @@ class Grid:
                 return self.cell(r, c)
             return None
 
-        # Si no se especificó celda, buscar en las primeras 20 filas y 10 columnas
+        # Si no se especificó celda, buscar en las primeras 25 filas y 15 columnas
         for r in range(1, min(self.max_row + 1, 25)):
             for c in range(1, min(self.max_col + 1, 15)):
                 val = str(self.cell_value(r, c) or "").strip()

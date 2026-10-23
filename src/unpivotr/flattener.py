@@ -55,7 +55,7 @@ class CellContext:
 
 
 class TableFlattener:
-    """Fluent Builder para aplanar tablas complejas con lógica expresada en código."""
+    """Fluent Builder para aplanar tablas complejas con lógica expresada en código e inversión biyectiva."""
 
     def __init__(self, table_id: str = "table") -> None:
         self.table_id = table_id
@@ -69,6 +69,8 @@ class TableFlattener:
         self._bindings: dict[str, Callable[[CellContext], Any]] = {}
         self._filters: list[Callable[[CellContext], bool]] = []
         self._value_transform: Callable[[float], float] = lambda v: v
+        self._coordinate_map: dict[tuple[str, str], tuple[int, int]] = {}
+        self._cell_coords: list[tuple[int, int]] = []
 
     def from_grid(self, grid: Grid) -> TableFlattener:
         self._grid = grid
@@ -142,7 +144,12 @@ class TableFlattener:
         self._filters.append(predicate)
         return self
 
-    def to_records(self) -> list[dict[str, Any]]:
+    @property
+    def coordinate_map(self) -> dict[tuple[str, str], tuple[int, int]]:
+        """Mapeo inverso biyectivo: (id, fecha) -> (row, col)."""
+        return dict(self._coordinate_map)
+
+    def to_records(self, include_coords: bool = False) -> list[dict[str, Any]]:
         """Extrae la lista de observaciones normalizadas conforme a las reglas configuradas."""
         if not self._grid:
             raise ValueError(f"No se ha cargado una cuadrícula para la tabla '{self.table_id}'.")
@@ -162,6 +169,8 @@ class TableFlattener:
         max_c = min(self._grid.max_col, self._col_end) if self._col_end is not None else self._grid.max_col
 
         observations: list[dict[str, Any]] = []
+        self._coordinate_map.clear()
+        self._cell_coords.clear()
 
         # 2. Iteración cartesiana sobre el rango de datos
         for r in range(self._row_start, max_r + 1):
@@ -186,17 +195,85 @@ class TableFlattener:
 
                 # Garantizar campos mínimos indispensables
                 if record.get("id") and record.get("fecha"):
+                    key = (str(record["id"]), str(record["fecha"]))
+                    self._coordinate_map[key] = (r, c)
+                    self._cell_coords.append((r, c))
+
+                    if include_coords:
+                        record["_row"] = r
+                        record["_col"] = c
+
                     observations.append(record)
 
         return observations
 
-    def to_dataframe(self) -> pd.DataFrame:
+    def to_dataframe(self, include_coords: bool = False) -> pd.DataFrame:
         """Convierte las observaciones extraídas a un DataFrame de pandas deduplicado."""
-        records = self.to_records()
+        records = self.to_records(include_coords=include_coords)
         if not records:
-            return pd.DataFrame(columns=["id", "fecha", "categoria", "valor", "unidad", "descripcion"])
+            cols = ["id", "fecha", "categoria", "valor", "unidad", "descripcion"]
+            if include_coords:
+                cols.extend(["_row", "_col"])
+            return pd.DataFrame(columns=cols)
 
         df = pd.DataFrame(records)
         if "id" in df.columns and "fecha" in df.columns:
             df = df.drop_duplicates(subset=["id", "fecha"], keep="last")
         return df
+
+    def invert(
+        self,
+        data: pd.DataFrame | list[dict[str, Any]],
+        preserve_headers: bool = True,
+    ) -> Grid:
+        """Inversión biyectiva: reconstruye la malla Grid original a partir de las observaciones tidy.
+
+        Si preserve_headers=True, clona los metadatos y encabezados originales de la hoja
+        y rellena las celdas de datos con los valores exactos del DataFrame.
+        """
+        if self._grid is None:
+            raise ValueError("No hay cuadrícula base para calcular la inversión.")
+
+        # Asegurar que el mapa de coordenadas esté poblado
+        if not self._coordinate_map:
+            self.to_records()
+
+        if preserve_headers:
+            recon = self._grid.clone()
+            # Limpiar todas las celdas en la zona de observaciones para que solo contengan lo extraído
+            for r in range(self._row_start, self._grid.max_row + 1):
+                for c in range(self._col_start, self._grid.max_col + 1):
+                    recon.set_cell(r, c, None)
+        else:
+            recon = Grid.empty(self._grid.max_row, self._grid.max_col, self._grid.sheet_name)
+
+        records = data.to_dict(orient="records") if isinstance(data, pd.DataFrame) else data
+
+        for row in records:
+            val = row.get("valor")
+            if val is None or pd.isna(val):
+                continue
+
+            r, c = None, None
+            if "_row" in row and "_col" in row:
+                r, c = int(row["_row"]), int(row["_col"])
+            else:
+                key = (str(row.get("id")), str(row.get("fecha")))
+                coords = self._coordinate_map.get(key)
+                if coords:
+                    r, c = coords
+
+            if r is not None and c is not None:
+                recon.set_cell(r, c, float(val))
+
+        return recon
+
+    def verify_invertibility(
+        self,
+        df: pd.DataFrame | None = None,
+        tolerance: float = 1e-5,
+    ) -> Any:
+        """Ejecuta una auditoría matemática de invertibilidad y no pérdida de información."""
+        from .invertibility import verify_invertibility
+
+        return verify_invertibility(self, reconstructed_or_df=df, tolerance=tolerance)

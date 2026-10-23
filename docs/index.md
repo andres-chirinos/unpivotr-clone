@@ -32,6 +32,7 @@ El objetivo de `unpivotr` es transformar esta geometría visual compleja en un *
 - [La Gramática de Hojas de Cálculo](concepts/grammar_of_spreadsheets.md): Teoría espacial y superación de las limitaciones de pandas.
 - [Celdas Espaciales y Propagación](concepts/spatial_cells.md): Acceso $O(1)$, resolución de celdas combinadas vía `row_ffill` y `col_ffill`.
 - [Verificación de Ida y Vuelta (Round-Trip)](concepts/round_trip_verification.md): Demostración matemática de reversibilidad y conservación de datos.
+- [Invertibilidad y Preservación de la Información](concepts/invertibility_and_information_preservation.md): Biyección de celdas y auditoría de pérdida cero.
 
 ### 2. Guías Prácticas y Ejemplos
 - [Guía Rápida (Quickstart)](guides/quickstart.md): Tu primer des-pivoteo en 5 minutos.
@@ -42,5 +43,6 @@ El objetivo de `unpivotr` es transformar esta geometría visual compleja en un *
 
 ### 3. Referencia de API
 - [TableFlattener y CellContext](api/flattener.md)
+- [InvertibilityVerifier y Report](api/invertibility.md)
 - [Grid y Cell](api/grid.md)
 - [Operador behead()](api/behead.md)

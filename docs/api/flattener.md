@@ -43,3 +43,23 @@ Objeto inyectado como argumento a las funciones lambda de enlace y filtrado para
 | `col_ffill(c)`| `(c: int) -> Any` | Valor en columna `c` propagado hacia arriba. |
 | `offset(dr, dc)`| `(dr: int, dc: int) -> Any`| Valor en celda desplazada $(row + dr, col + dc)$. |
 | `cell(r, c)`| `(r: int, c: int) -> Cell` | Objeto `Cell` tipado en coordenadas absolutas. |
+
+---
+
+## Métodos de Inversión y Auditoría
+
+### `invert(data, preserve_headers=True) -> Grid`
+Reconstruye una malla `Grid` (o archivo Excel) a partir de un `DataFrame` de observaciones o lista de diccionarios, aplicando el mapeo inverso biyectivo.
+
+```python
+recon_grid = flattener.invert(df, preserve_headers=True)
+recon_grid.to_excel("reconstruido.xlsx")
+```
+
+### `verify_invertibility(df=None, tolerance=1e-5) -> InvertibilityReport`
+Ejecuta la auditoría automática celda a celda para asegurar que no hubo pérdida de información.
+
+```python
+report = flattener.verify_invertibility(df)
+report.assert_valid()
+```
