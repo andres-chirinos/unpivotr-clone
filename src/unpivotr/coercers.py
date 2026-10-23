@@ -98,6 +98,13 @@ def parse_date(val: Any, default_year: int | None = None) -> str | None:
         d, m, y = m_dmy.groups()
         return f"{y}-{int(m):02d}-{int(d):02d}"
 
+    # Trimestres: 2023Q1, 2023-Q2, etc. (fin de trimestre)
+    m_q = re.search(r"\b(\d{4})[-_\s]?[qQ]([1-4])\b", s)
+    if m_q:
+        y, q = m_q.groups()
+        q_end_days = {1: "03-31", 2: "06-30", 3: "09-30", 4: "12-31"}
+        return f"{y}-{q_end_days[int(q)]}"
+
     # YYYY-MM o YYYY/MM (inicio de mes)
     m_ym = re.search(r"\b(\d{4})[/-](\d{1,2})\b", s)
     if m_ym:
