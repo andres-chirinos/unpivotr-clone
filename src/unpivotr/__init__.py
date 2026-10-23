@@ -6,13 +6,17 @@ from .flattener import CellContext, TableFlattener
 from .behead import behead, as_cells_dataframe
 from .synthesizer import synthesize_heterogeneous_workbook, verify_roundtrip
 from .invertibility import (
+    DataCorruptionError,
+    InformationLossError,
     InvertibilityError,
     InvertibilityReport,
     InvertibilityVerifier,
+    is_trivial_value,
     verify_invertibility,
 )
+from .converter import BaseTableConverter
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
     "Cell",
@@ -31,8 +35,12 @@ __all__ = [
     "as_cells_dataframe",
     "synthesize_heterogeneous_workbook",
     "verify_roundtrip",
+    "DataCorruptionError",
+    "InformationLossError",
     "InvertibilityError",
     "InvertibilityReport",
     "InvertibilityVerifier",
+    "is_trivial_value",
     "verify_invertibility",
+    "BaseTableConverter",
 ]

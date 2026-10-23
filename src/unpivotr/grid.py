@@ -1,4 +1,4 @@
-"""Malla bidimensional indexada con soporte de propagación espacial."""
+"""Malla bidimensional indexada con soporte de propagación espacial y formatos múltiples."""
 from __future__ import annotations
 
 import re
@@ -10,7 +10,7 @@ from .cell import Cell, parse_address
 
 
 class Grid:
-    """Representa una hoja de cálculo bidimensional con acceso O(1) y propagación."""
+    """Representa una hoja de cálculo bidimensional con acceso O(1), propagación e interop matricial."""
 
     def __init__(
         self,
@@ -51,6 +51,71 @@ class Grid:
             return cls.from_worksheet(ws)
         finally:
             wb.close()
+
+    @classmethod
+    def from_any(cls, obj: Any, sheet_name: str = "Sheet1") -> Grid:
+        """Convierte agnósticamente cualquier formato matricial o tabular a Grid."""
+        if isinstance(obj, Grid):
+            return obj
+
+        # Manejo de DataFrame pandas
+        try:
+            import pandas as pd
+            if isinstance(obj, pd.DataFrame):
+                # Caso A: DataFrame Tidy con coordenadas explícitas
+                if "_row" in obj.columns and "_col" in obj.columns and "valor" in obj.columns:
+                    max_r = int(obj["_row"].max()) if not obj.empty else 0
+                    max_c = int(obj["_col"].max()) if not obj.empty else 0
+                    g = cls.empty(max_r, max_c, sheet_name=sheet_name)
+                    for _, row in obj.iterrows():
+                        val = row["valor"]
+                        if pd.notna(val):
+                            g.set_cell(int(row["_row"]), int(row["_col"]), float(val))
+                    return g
+
+                # Caso B: DataFrame Tidy con dimensiones id y fecha
+                if "id" in obj.columns and "fecha" in obj.columns and "valor" in obj.columns:
+                    piv = obj.pivot(index="id", columns="fecha", values="valor")
+                    header = ["id"] + [str(c) for c in piv.columns]
+                    rows = [header]
+                    for idx, row in piv.iterrows():
+                        rows.append([str(idx)] + list(row.values))
+                    return cls.from_rows(rows, sheet_name=sheet_name)
+
+                # Caso C: DataFrame como matriz directa 2D
+                header = [obj.index.name or "index"] + [str(c) for c in obj.columns]
+                rows = [header]
+                for idx, row in obj.iterrows():
+                    rows.append([idx] + list(row.values))
+                return cls.from_rows(rows, sheet_name=sheet_name)
+        except ImportError:
+            pass
+
+        # Manejo de numpy ndarray
+        try:
+            import numpy as np
+            if isinstance(obj, np.ndarray):
+                return cls(obj.tolist(), sheet_name=sheet_name)
+        except ImportError:
+            pass
+
+        # Manejo de openpyxl Worksheet / Workbook
+        if hasattr(obj, "iter_rows"):
+            return cls.from_worksheet(obj)
+        if hasattr(obj, "active") and hasattr(obj.active, "iter_rows"):
+            return cls.from_worksheet(obj.active)
+
+        # Manejo de ruta de archivo
+        if isinstance(obj, (str, Path)):
+            p = Path(obj)
+            if p.exists() and p.suffix.lower() in (".xlsx", ".xlsm", ".xltx"):
+                return cls.from_excel(p, sheet_name=sheet_name)
+
+        # Listas y tuplas
+        if isinstance(obj, (list, tuple)):
+            return cls.from_rows(obj, sheet_name=sheet_name)
+
+        raise TypeError(f"No se puede convertir objeto de tipo {type(obj)} a Grid.")
 
     def cell_value(self, r: int, c: int) -> Any:
         """Obtiene el valor crudo en la fila r y columna c (base 1)."""
